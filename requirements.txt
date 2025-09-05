@@ -1,0 +1,4 @@
+hidapi
+matplotlib
+numpy
+pandas
