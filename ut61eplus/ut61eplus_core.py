@@ -6,7 +6,7 @@ import hid
 log = logging.getLogger(__name__)
 
 class Measurement:
-    """Class for storing and decoding a single measurement from the multimeter."""
+    """Класс для хранения и декодирования одного измерения с мультиметра."""
     _MODE = ['ACV', 'ACmV', 'DCV', 'DCmV', 'Hz', '%', 'OHM', 'CONT', 'DIDOE', 'CAP', '°C', '°F', 'DCuA', 'ACuA', 'DCmA',
              'ACmA', 'DCA', 'ACA', 'HFE', 'Live', 'NCV', 'LozV', 'ACA', 'DCA', 'LPF', 'AC/DC', 'LPF', 'AC+DC', 'LPF',
              'AC+DC2', 'INRUSH']
@@ -26,7 +26,7 @@ class Measurement:
 
     def __init__(self, b: bytes):
         if not isinstance(b, bytes) or len(b) < 14:
-            raise TypeError("Measurement requires a minimum of 14 bytes for initialization.")
+            raise TypeError("Для инициализации Measurement требуется минимум 14 байт.")
         
         self.raw_bytes = b
         self.mode = self._MODE[b[0]]
@@ -34,7 +34,7 @@ class Measurement:
         self.display = b[2:9].decode('ASCII', errors='ignore').replace(' ', '')
         self.is_overload = self.display in self._OVERLOAD
         
-        # Main flags
+        # Основные флаги
         self.is_max = (b[11] & 8) > 0
         self.is_min = (b[11] & 4) > 0
         self.is_hold = (b[11] & 2) > 0
@@ -58,7 +58,7 @@ class Measurement:
             self.unit = self.unit[1:]
 
     def to_dict(self):
-        """Returns all measurement data in the requested dictionary format."""
+        """Возвращает все данные измерения в запрашиваемом формате словаря."""
         min_max_status = None
         if self.is_max: min_max_status = 'max'
         elif self.is_min: min_max_status = 'min'
@@ -90,13 +90,13 @@ class UT61EPLUS:
     }
 
     def __init__(self):
-        log.info('Connecting to UT61E+...')
+        log.info('Подключение к UT61E+...')
         self.dev = hid.device()
         self.dev.open(self.CP2110_VID, self.CP2110_PID)
         self.dev.send_feature_report([0x41, 0x01])
         self.dev.send_feature_report([0x50, 0x00, 0x00, 0x25, 0x80, 0x00, 0x00, 0x03, 0x00, 0x00])
         self.dev.send_feature_report([0x43, 0x02])
-        log.info('Device successfully configured.')
+        log.info('Устройство успешно настроено.')
         self.read_buffer = bytearray()
 
     def _write(self, b: bytes):
@@ -113,9 +113,9 @@ class UT61EPLUS:
                     packet = self.read_buffer[start_index: start_index + full_packet_len]
                     self.read_buffer = self.read_buffer[start_index + full_packet_len:]
                     if sum(packet[:-2]) == (packet[-2] << 8) + packet[-1]: return bytes(packet[3:])
-                    log.warning("Checksum error! Packet discarded.")
+                    log.warning("Ошибка контрольной суммы! Пакет отброшен.")
                     continue
-            raw = self.dev.read(64, 10) # Optimized timeout
+            raw = self.dev.read(64, 10) # Оптимизированный таймаут
             if raw: self.read_buffer.extend(bytes(raw[1:2]))
         return None
 
@@ -125,29 +125,30 @@ class UT61EPLUS:
         return Measurement(payload[:-2]) if payload and len(payload) == 16 else None
 
     def send_command(self, cmd) -> None:
-        """Sends a command to the device."""
+        """Отправка команды на устройство."""
         cmd_code = self._COMMANDS.get(cmd) if isinstance(cmd, str) else cmd
         if not isinstance(cmd_code, int):
-            raise ValueError(f'Invalid command: {cmd}')
+            raise ValueError(f'Неверная команда: {cmd}')
 
         seq = bytearray(self._SEQUENCE_SEND_CMD)
         checksum = cmd_code + 379
         seq.extend([cmd_code, checksum >> 8, checksum & 0xff])
         
-        log.info(f"Sending command: '{cmd}' (code: {cmd_code})")
+        log.info(f"Отправка команды: '{cmd}' (код: {cmd_code})")
         self._write(seq)
-        # After a command, the device might send a response packet, which needs to be "absorbed"
+        # После команды устройство может прислать ответный пакет, его нужно "поглотить"
         self._read_packet(timeout=0.2) 
 
     def close(self):
         self.dev.close()
-        log.info("Connection to device closed.")
+        log.info("Соединение с устройством закрыто.")
 
 def data_collector(dmm, data_queue, stop_event):
-    """This function runs in a separate thread and only collects data."""
-    log.info("Data collection thread started.")
+    """Эта функция запускается в отдельном потоке и только собирает данные."""
+    log.info("Поток сбора данных запущен.")
     while not stop_event.is_set():
         measurement = dmm.take_measurement()
         if measurement:
             data_queue.put(measurement.to_dict())
-    log.info("Data collection thread stopped.")
+    log.info("Поток сбора данных остановлен.")
+
